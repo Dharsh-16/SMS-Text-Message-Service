@@ -1,0 +1,74 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row justify-content-center align-items-center" style="min-height: 80vh;">
+    <div class="col-md-5 col-sm-10">
+        <!-- Header -->
+        <div class="text-center mb-4">
+            <div class="d-inline-flex align-items-center justify-content-center rounded-circle mb-3 shadow-glow"
+                 style="width:70px;height:70px;background:{% if role_hint == 'admin' %}linear-gradient(135deg,#7c3aed,#6d28d9){% else %}linear-gradient(135deg,#06b6d4,#0891b2){% endif %};">
+                <i class="bi bi-{% if role_hint == 'admin' %}shield-lock-fill{% else %}person-check-fill{% endif %} text-white fs-2"></i>
+            </div>
+            <h2 class="fw-bold" style="font-family:'Outfit',sans-serif;">
+                {% if role_hint == 'admin' %}Admin Portal{% else %}User Access{% endif %}
+            </h2>
+            <p class="text-muted">Sign in to your TextFlow account</p>
+        </div>
+
+        <!-- Card -->
+        <div class="login-card card border-0 p-4 position-relative" style="border-radius:24px;">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}{% for cat, msg in messages %}
+                <div class="alert alert-{{ cat }} rounded-3 small py-2">{{ msg }}</div>
+                {% endfor %}{% endif %}
+            {% endwith %}
+
+            <form method="POST">
+                <div class="mb-3">
+                    <label class="form-label fw-semibold small">Username</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-0 rounded-start-pill ps-3">
+                            <i class="bi bi-person-fill text-muted"></i>
+                        </span>
+                        <input type="text" class="form-control border-0 bg-light rounded-end-pill ps-2"
+                               name="username" required autocomplete="username" placeholder="Enter your username">
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label fw-semibold small">Password</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-light border-0 rounded-start-pill ps-3">
+                            <i class="bi bi-lock-fill text-muted"></i>
+                        </span>
+                        <input type="password" class="form-control border-0 bg-light rounded-end-pill ps-2"
+                               name="password" required autocomplete="current-password" placeholder="••••••••">
+                    </div>
+                </div>
+                <div class="d-grid">
+                    <button type="submit" class="btn btn-primary btn-lg rounded-pill fw-bold py-3" id="loginBtn">
+                        <i class="bi bi-arrow-right-circle me-2"></i>Sign In
+                    </button>
+                </div>
+            </form>
+
+            <div class="text-center mt-4 text-muted small">
+                <i class="bi bi-shield-lock me-1"></i>
+                Controlled access — contact your administrator for an account.
+            </div>
+        </div>
+
+        <!-- Footer note -->
+        <p class="text-center text-muted small mt-3">
+            TextFlow SMS Service &copy; {{ 2025 }}
+        </p>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.getElementById('loginBtn').addEventListener('click', function() {
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Signing in...';
+    });
+</script>
+{% endblock %}

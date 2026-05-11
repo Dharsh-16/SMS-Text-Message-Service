@@ -1,0 +1,760 @@
+{% extends "layout.html" %}
+
+{% block content %}
+<div class="row g-0" style="height: calc(100vh - 100px);">
+
+    <!-- ============ SIDEBAR ============ -->
+    <div class="col-md-4 col-lg-3 border-end d-flex flex-column bg-glass" style="border-radius:0 0 0 0;">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+            <h5 class="mb-0 fw-bold">💬 Messages</h5>
+            <div class="d-flex gap-2 align-items-center">
+                <button id="themeToggle" class="btn btn-sm btn-outline-secondary rounded-circle" title="Toggle Theme">
+                    <i class="bi bi-moon-fill"></i>
+                </button>
+                <button class="btn btn-sm btn-primary rounded-circle" id="openCreateGroup" title="Create Group">
+                    <i class="bi bi-plus-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <ul class="nav nav-pills nav-fill mx-3 mt-2 mb-2 bg-light rounded-pill p-1" id="sidebarTabs">
+            <li class="nav-item">
+                <button class="nav-link active rounded-pill py-1 small fw-semibold position-relative" data-bs-toggle="tab" data-bs-target="#tab-chats">
+                    <i class="bi bi-chat-dots-fill me-1"></i>Chats
+                    {% if unread_senders %}
+                        <span class="tab-unread-dot position-absolute top-10 start-90 translate-middle p-1 bg-danger border border-light rounded-circle shadow-glow" style="animation:pulse 2s infinite;"><span class="visually-hidden">New alerts</span></span>
+                    {% endif %}
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill py-1 small fw-semibold position-relative" data-bs-toggle="tab" data-bs-target="#tab-groups">
+                    <i class="bi bi-people-fill me-1"></i>Groups
+                </button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link rounded-pill py-1 small fw-semibold position-relative" data-bs-toggle="tab" data-bs-target="#tab-inbox" id="inboxTabBtn">
+                    <i class="bi bi-inbox-fill me-1"></i>Inbox
+                    {% set unread_count = inbox | selectattr('status', 'ne', 'read') | list | length %}
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger inbox-badge {% if unread_count == 0 %}d-none{% endif %}" style="font-size:0.6rem;">
+                        {{ unread_count }}
+                    </span>
+                </button>
+            </li>
+        </ul>
+
+        <div class="px-3 mb-2">
+            <input type="text" id="contactSearch" class="form-control form-control-sm rounded-pill border-0 bg-light" placeholder="🔍 Search...">
+        </div>
+
+        <!-- Tab Content -->
+        <div class="tab-content flex-grow-1 overflow-auto">
+
+            <!-- Chats Tab -->
+            <div class="tab-pane fade show active" id="tab-chats">
+                <div class="list-group list-group-flush" id="userList">
+                    {% for user in users %}
+                        {% if user.username != current_user.username %}
+                            <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 border-0 py-3 contact-item" data-username="{{ user.username }}">
+                                <div class="position-relative flex-shrink-0">
+                                    <div class="avatar rounded-circle text-white d-flex align-items-center justify-content-center fw-bold" style="width:42px;height:42px;">
+                                        {{ user.username[0]|upper }}
+                                    </div>
+                                    <span class="status-dot position-absolute bottom-0 end-0 border border-2 border-white rounded-circle bg-secondary" id="status-{{ user.username }}" style="width:12px;height:12px;"></span>
+                                </div>
+                                <div class="flex-grow-1 text-start overflow-hidden">
+                                    <div class="fw-bold d-flex align-items-center">
+                                        {{ user.username }}
+                                        {% if user.username in unread_senders %}
+                                            <span class="unread-dot rounded-circle bg-danger d-inline-block ms-2 shadow-glow" style="width:8px;height:8px;animation:pulse 2s infinite;"></span>
+                                        {% endif %}
+                                    </div>
+                                    <small class="text-muted text-truncate d-block" id="preview-{{ user.username }}">
+                                        {% if user.username in unread_senders %}
+                                            <span class="text-danger fw-semibold">{{ unread_senders[user.username] }} unread messages</span>
+                                        {% else %}
+                                            No messages yet
+                                        {% endif %}
+                                    </small>
+                                </div>
+                            </button>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Groups Tab -->
+            <div class="tab-pane fade" id="tab-groups">
+                <div class="list-group list-group-flush" id="groupList">
+                    <div class="text-center text-muted py-4 small" id="groupsPlaceholder">
+                        <i class="bi bi-people d-block fs-2 mb-1"></i>Loading groups...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Inbox Tab (Admin campaign messages) -->
+            <div class="tab-pane fade" id="tab-inbox">
+                <div class="p-2 border-bottom d-flex justify-content-between align-items-center bg-light bg-opacity-50">
+                    <small class="text-muted fw-bold ps-2">NOTIFICATIONS</small>
+                    <button class="btn btn-sm btn-link text-primary text-decoration-none p-0 pe-2 small fw-bold" onclick="markAllInboxRead()">
+                        Mark all as read
+                    </button>
+                </div>
+                <div class="list-group list-group-flush" id="inboxList">
+                    {% for msg in inbox %}
+                        <div class="list-group-item border-0 py-3 inbox-item {% if msg.status == 'read' %}opacity-50{% endif %}" id="inbox-{{ msg._id }}">
+                            <div class="d-flex align-items-start gap-3">
+                                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                                     style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#06b6d4)">
+                                    <i class="bi bi-megaphone-fill" style="font-size:0.85rem;"></i>
+                                </div>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="fw-bold small">📢 Admin Broadcast</span>
+                                        <div class="d-flex align-items-center gap-2">
+                                            <small class="text-muted" style="font-size: 0.7rem;">{{ msg.timestamp.strftime('%d %b, %H:%M') }}</small>
+                                            {% if msg.status != 'read' %}
+                                                <button class="btn btn-sm p-0 text-primary mark-read-btn" onclick="markInboxRead('{{ msg._id }}')" title="Mark as read">
+                                                    <i class="bi bi-check-circle"></i>
+                                                </button>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                    <p class="mb-0 small text-muted mt-1">{{ msg.content }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="text-center text-muted py-5">
+                            <i class="bi bi-inbox d-block fs-1 mb-2 opacity-50"></i>
+                            <p class="small">No campaign messages yet.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ CHAT WINDOW ============ -->
+    <div class="col-md-8 col-lg-9 d-flex flex-column">
+        <!-- Chat Header -->
+        <div id="chatHeader" class="p-3 border-bottom d-flex align-items-center justify-content-between bg-glass">
+            <div class="d-flex align-items-center gap-3">
+                <div id="activeAvatar" class="avatar rounded-circle text-white d-flex align-items-center justify-content-center fw-bold d-none" style="width:42px;height:42px;"></div>
+                <div>
+                    <h6 class="mb-0 fw-bold" id="chatWith">Select a conversation</h6>
+                    <div>
+                        <small class="text-success fw-semibold d-none" id="activeStatus"><i class="bi bi-circle-fill" style="font-size:0.5rem;"></i> Online</small>
+                        <small class="text-primary fst-italic d-none" id="typingIndicator">typing...</small>
+                    </div>
+                </div>
+            </div>
+            <div id="chatActions" class="d-none">
+                <button class="btn btn-sm btn-outline-secondary rounded-circle" id="groupManageBtn" title="Manage Members">
+                    <i class="bi bi-people-fill"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Messages Area -->
+        <div id="chatWindow" class="flex-grow-1 overflow-auto p-4">
+            <div id="messages" class="d-flex flex-column gap-2">
+                <div class="text-center py-5 text-muted" id="emptyChat">
+                    <i class="bi bi-chat-square-dots-fill d-block mb-3" style="font-size:3rem;opacity:0.2;"></i>
+                    <p class="fw-semibold">Pick a conversation to start chatting</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="p-3 border-top bg-glass">
+            <form id="messageForm" class="d-flex gap-2 align-items-end">
+                <input type="file" id="fileInput" class="d-none" accept="image/*">
+                <div class="flex-grow-1 position-relative">
+                    <textarea id="messageInput" class="form-control rounded-4 border-0 bg-light" placeholder="Type a message... (max 160 chars)" rows="1" maxlength="160" disabled></textarea>
+                    <span class="position-absolute bottom-0 end-0 p-2 small" id="charCount" style="color:#94a3b8;">0/160</span>
+                </div>
+                <button type="button" class="btn btn-light rounded-circle" id="mmsBtn" disabled title="Send Image (MMS)">
+                    <i class="bi bi-paperclip"></i>
+                </button>
+                <button type="submit" id="sendBtn" class="btn btn-primary rounded-circle d-flex align-items-center justify-content-center" style="width:45px;height:45px;" disabled>
+                    <i class="bi bi-send-fill"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block modals %}
+<!-- ======= Create Group Modal (at body level — Bootstrap backdrop works!) ======= -->
+<div class="modal fade" id="createGroupModal" tabindex="-1" aria-labelledby="createGroupLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="createGroupLabel">
+                    <i class="bi bi-people-fill me-2 text-primary"></i>Create New Group
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <form action="/groups/create" method="POST">
+                <div class="modal-body pt-3">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold small">Group Name</label>
+                        <input type="text" name="name" class="form-control rounded-pill" required placeholder="e.g. Project Team">
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label fw-semibold small">Select Members</label>
+                        <div class="list-group overflow-auto rounded-3" style="max-height:220px;">
+                            {% for user in users %}
+                                {% if user.username != current_user.username %}
+                                    <label class="list-group-item d-flex align-items-center gap-2 border-0 py-2">
+                                        <input class="form-check-input m-0" type="checkbox" name="members" value="{{ user.username }}">
+                                        <div class="avatar rounded-circle text-white d-inline-flex align-items-center justify-content-center fw-bold me-1" style="width:28px;height:28px;font-size:0.75rem;">
+                                            {{ user.username[0]|upper }}
+                                        </div>
+                                        {{ user.username }}
+                                    </label>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary rounded-pill px-4">
+                        <i class="bi bi-plus-circle me-1"></i>Create Group
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ======= Manage Group Members Modal ======= -->
+<div class="modal fade" id="groupManageModal" tabindex="-1" aria-labelledby="groupManageLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold" id="groupManageLabel">
+                    <i class="bi bi-people-fill me-2 text-primary"></i>Manage Members
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addMemberForm" class="mb-3">
+                    <label class="form-label fw-semibold small">Add Member by Username</label>
+                    <div class="input-group">
+                        <input type="text" id="newMemberUsername" class="form-control rounded-start-pill" placeholder="Enter username...">
+                        <button class="btn btn-primary rounded-end-pill px-3" type="submit">
+                            <i class="bi bi-person-plus-fill"></i>
+                        </button>
+                    </div>
+                </form>
+                <div class="fw-semibold small text-muted mb-2">CURRENT MEMBERS</div>
+                <div id="memberList" class="list-group rounded-3"></div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const socket = io();
+const currentUsername = "{{ current_user.username }}";
+let activeRecipient = null;
+let activeGroupId = null;
+let activeGroupCreator = null;
+let typingTimer;
+
+// ── Connect ──────────────────────────────────────────────
+socket.on('connect', () => {
+    socket.emit('join', {});
+    fetchGroups();
+});
+
+// ── Clear Tab Unread Dots on Click ───────────────────────
+document.querySelectorAll('#sidebarTabs .nav-link').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const dot = tab.querySelector('.tab-unread-dot');
+        if (dot) dot.remove();
+    });
+});
+
+// ── Create Group Modal (manual trigger, NOT data-bs-target) ──
+document.getElementById('openCreateGroup').addEventListener('click', () => {
+    const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
+    modal.show();
+});
+
+// ── Manage Group button trigger ──
+document.getElementById('groupManageBtn').addEventListener('click', () => {
+    loadGroupMembers();
+    const modal = new bootstrap.Modal(document.getElementById('groupManageModal'));
+    modal.show();
+});
+
+// ── Contact Selection ────────────────────────────────────
+document.querySelectorAll('.contact-item').forEach(item => {
+    item.addEventListener('click', () => {
+        // Clear UI Unread Dot if present
+        const dot = item.querySelector('.unread-dot');
+        if (dot) dot.remove();
+        
+        const username = item.dataset.username;
+        const preview = item.querySelector(`#preview-${username}`);
+        if (preview && preview.innerHTML.includes('unread messages')) {
+            preview.innerHTML = '<span class="text-muted">Chat opened</span>';
+        }
+
+        setActive(item);
+        activeRecipient = username;
+        activeGroupId = null;
+        document.getElementById('chatWith').innerText = activeRecipient;
+        document.getElementById('chatActions').classList.add('d-none');
+        setAvatar(activeRecipient[0], 'var(--primary)');
+        enableInputs();
+        clearMessages();
+        socket.emit('get_history', { recipient: activeRecipient });
+    });
+});
+
+// ── Group Helpers ────────────────────────────────────────
+function fetchGroups() {
+    fetch('/api/groups').then(r => r.json()).then(data => {
+        const list = document.getElementById('groupList');
+        const ph = document.getElementById('groupsPlaceholder');
+        if (ph) ph.remove();
+        list.innerHTML = '';
+        if (!data.groups.length) {
+            list.innerHTML = '<div class="text-center text-muted py-4 small"><i class="bi bi-people d-block fs-2 mb-1"></i>No groups yet. Press + to create one.</div>';
+            return;
+        }
+        data.groups.forEach(group => {
+            const btn = document.createElement('button');
+            btn.className = 'list-group-item list-group-item-action d-flex align-items-center gap-3 border-0 py-3 group-item';
+            btn.dataset.groupId = group._id;
+            btn.innerHTML = `
+                <div class="avatar rounded-circle text-white d-flex align-items-center justify-content-center fw-bold flex-shrink-0" style="width:42px;height:42px;background:linear-gradient(135deg,#0284c7,#06b6d4);">
+                    ${group.name[0].toUpperCase()}
+                </div>
+                <div class="flex-grow-1 text-start">
+                    <div class="fw-bold d-flex justify-content-between align-items-center">
+                        ${group.name}
+                        ${group.unread_count > 0 ? `<span class="badge rounded-pill bg-danger unread-dot shadow-glow" style="font-size: 0.65rem; padding: 0.35em 0.6em; animation: pulse 2s infinite;">${group.unread_count}</span>` : ''}
+                    </div>
+                    <small class="text-muted">${group.members.length} members</small>
+                </div>`;
+            btn.onclick = () => selectGroup(group);
+            list.appendChild(btn);
+        });
+    });
+}
+
+function selectGroup(group) {
+    document.querySelectorAll('.contact-item, .group-item').forEach(i => i.classList.remove('active'));
+    
+    // Clear UI Unread Dot/Badge
+    const clickedGroup = document.querySelector(`.group-item[data-group-id="${group._id}"]`);
+    if (clickedGroup) {
+        const badge = clickedGroup.querySelector('.unread-dot');
+        if (badge) badge.remove();
+    }
+    
+    // Notify server to mark group as read
+    socket.emit('mark_group_read', { group_id: group._id });
+
+    activeRecipient = null;
+    activeGroupId = group._id;
+    activeGroupCreator = group.creator;
+    document.getElementById('chatWith').innerText = group.name;
+    const actions = document.getElementById('chatActions');
+    actions.classList.remove('d-none');
+    const manageBtn = document.getElementById('groupManageBtn');
+    manageBtn.classList.toggle('d-none', activeGroupCreator !== currentUsername);
+    setAvatar(group.name[0], 'linear-gradient(135deg,#0284c7,#06b6d4)');
+    enableInputs();
+    clearMessages();
+    socket.emit('join_group', { group_id: activeGroupId });
+    socket.emit('get_history', { group_id: activeGroupId });
+}
+
+function loadGroupMembers() {
+    if (!activeGroupId) return;
+    fetch(`/api/groups/${activeGroupId}/members`).then(r => r.json()).then(data => {
+        const list = document.getElementById('memberList');
+        list.innerHTML = '';
+        data.members.forEach(member => {
+            const div = document.createElement('div');
+            div.className = 'list-group-item d-flex justify-content-between align-items-center py-2 border-0';
+            div.innerHTML = `
+                <div class="d-flex align-items-center gap-2">
+                    <div class="avatar rounded-circle text-white d-flex align-items-center justify-content-center fw-bold" style="width:32px;height:32px;font-size:0.8rem;">
+                        ${member[0].toUpperCase()}
+                    </div>
+                    <span class="fw-semibold">${member}</span>
+                    ${member === data.creator ? '<span class="badge bg-primary rounded-pill ms-1" style="font-size:0.65rem;">Creator</span>' : ''}
+                </div>
+                ${(currentUsername === data.creator && member !== data.creator) ? `
+                    <button class="btn btn-sm btn-outline-danger rounded-pill px-2" onclick="removeMember('${member}')">
+                        <i class="bi bi-person-dash-fill"></i> Remove
+                    </button>` : ''}`;
+            list.appendChild(div);
+        });
+    });
+}
+
+function removeMember(username) {
+    if (!confirm(`Remove ${username} from the group?`)) return;
+    const fd = new FormData();
+    fd.append('group_id', activeGroupId);
+    fd.append('username', username);
+    fetch('/groups/members/remove', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+        if (d.success) { loadGroupMembers(); fetchGroups(); }
+        else alert(d.error);
+    });
+}
+
+document.getElementById('addMemberForm').onsubmit = e => {
+    e.preventDefault();
+    const username = document.getElementById('newMemberUsername').value.trim();
+    if (!username) return;
+    const fd = new FormData();
+    fd.append('group_id', activeGroupId);
+    fd.append('username', username);
+    fetch('/groups/members/add', { method: 'POST', body: fd }).then(r => r.json()).then(d => {
+        if (d.success) { loadGroupMembers(); document.getElementById('newMemberUsername').value = ''; fetchGroups(); }
+        else alert(d.error);
+    });
+};
+
+// ── UI Utilities ─────────────────────────────────────────
+function setActive(el) {
+    document.querySelectorAll('.contact-item, .group-item').forEach(i => i.classList.remove('active'));
+    el.classList.add('active');
+}
+
+function setAvatar(letter, bg) {
+    const av = document.getElementById('activeAvatar');
+    av.innerText = letter.toUpperCase();
+    av.style.background = bg;
+    av.classList.remove('d-none');
+}
+
+function enableInputs() {
+    document.getElementById('messageInput').disabled = false;
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('mmsBtn').disabled = false;
+    document.getElementById('emptyChat')?.remove();
+}
+
+function clearMessages() {
+    document.getElementById('messages').innerHTML = '';
+}
+
+// ── Character Counter ────────────────────────────────────
+const messageInput = document.getElementById('messageInput');
+messageInput.addEventListener('input', () => {
+    const count = messageInput.value.length;
+    const counter = document.getElementById('charCount');
+    counter.innerText = `${count}/160`;
+    counter.style.color = count > 140 ? '#ef4444' : '#94a3b8';
+
+    clearTimeout(typingTimer);
+    if (activeRecipient) socket.emit('typing', { recipient: activeRecipient });
+    typingTimer = setTimeout(() => {
+        if (activeRecipient) socket.emit('stop_typing', { recipient: activeRecipient });
+    }, 2000);
+});
+
+// ── Send Message ─────────────────────────────────────────
+document.getElementById('messageForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const content = messageInput.value.trim();
+    if (!content) return;
+    const data = { content };
+    if (activeRecipient) data.recipient = activeRecipient;
+    if (activeGroupId) data.group_id = activeGroupId;
+    socket.emit('send_message', data);
+    messageInput.value = '';
+    document.getElementById('charCount').innerText = '0/160';
+    if (activeRecipient) socket.emit('stop_typing', { recipient: activeRecipient });
+});
+
+// ── MMS ──────────────────────────────────────────────────
+const mmsBtn = document.getElementById('mmsBtn');
+const fileInput = document.getElementById('fileInput');
+mmsBtn.onclick = () => fileInput.click();
+fileInput.onchange = () => {
+    if (!fileInput.files.length) return;
+    const fd = new FormData();
+    fd.append('file', fileInput.files[0]);
+    mmsBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+    fetch('/upload', { method: 'POST', body: fd })
+        .then(r => r.json())
+        .then(d => {
+            if (d.url) {
+                const payload = { attachment: d.url, content: 'Sent an image 📷' };
+                if (activeRecipient) payload.recipient = activeRecipient;
+                if (activeGroupId) payload.group_id = activeGroupId;
+                socket.emit('send_message', payload);
+            } else alert(d.error || 'Upload failed');
+        })
+        .finally(() => { mmsBtn.innerHTML = '<i class="bi bi-paperclip"></i>'; fileInput.value = ''; });
+};
+
+// ── Socket Listeners ─────────────────────────────────────
+socket.on('new_message', data => {
+    const isActiveChat = data.sender === activeRecipient || data.sender === currentUsername;
+    if (isActiveChat) {
+        appendMessage(data);
+        if (data.sender === activeRecipient) {
+            socket.emit('mark_delivered', { message_id: data._id });
+            socket.emit('mark_read', { message_id: data._id });
+        }
+    } else {
+        if (data._id) socket.emit('mark_delivered', { message_id: data._id });
+        const preview = document.getElementById(`preview-${data.sender}`);
+        if (preview) {
+            preview.innerText = data.content;
+            // Flash unread badge on contact
+            const contactBtn = document.querySelector(`[data-username="${data.sender}"]`);
+            if (contactBtn && !contactBtn.querySelector('.unread-dot')) {
+                const dot = document.createElement('span');
+                dot.className = 'unread-dot rounded-circle bg-danger d-inline-block ms-1';
+                dot.style.cssText = 'width:8px;height:8px;vertical-align:middle;';
+                contactBtn.querySelector('.flex-grow-1').appendChild(dot);
+            }
+        }
+        showToast(`💬 ${data.sender}`, data.content);
+        
+        // Add tab dot if not active
+        const chatsTab = document.querySelector('[data-bs-target="#tab-chats"]');
+        if (chatsTab && !chatsTab.querySelector('.tab-unread-dot') && !chatsTab.classList.contains('active')) {
+            chatsTab.insertAdjacentHTML('beforeend', `<span class="tab-unread-dot position-absolute top-10 start-90 translate-middle p-1 bg-danger border border-light rounded-circle shadow-glow" style="animation:pulse 2s infinite;"></span>`);
+        }
+    }
+    const preview = document.getElementById(`preview-${data.sender}`);
+    if (preview && data.sender !== currentUsername) preview.innerText = data.content;
+});
+
+socket.on('new_group_message', data => {
+    if (data.group_id === activeGroupId) {
+        appendMessage(data);
+    } else if (data.sender !== currentUsername) {
+        const groupsTab = document.querySelector('[data-bs-target="#tab-groups"]');
+        if (groupsTab && !groupsTab.querySelector('.tab-unread-dot') && !groupsTab.classList.contains('active')) {
+            groupsTab.insertAdjacentHTML('beforeend', `<span class="tab-unread-dot position-absolute top-10 start-90 translate-middle p-1 bg-danger border border-light rounded-circle shadow-glow" style="animation:pulse 2s infinite;"></span>`);
+        }
+        
+        // Find group btn in list and add/increment badge
+        const groupBtn = document.querySelector(`.group-item[data-group-id="${data.group_id}"]`);
+        if (groupBtn) {
+            let badge = groupBtn.querySelector('.unread-dot');
+            if (!badge) {
+                badge = document.createElement('span');
+                badge.className = 'badge rounded-pill bg-danger unread-dot shadow-glow';
+                badge.style.cssText = 'font-size: 0.65rem; padding: 0.35em 0.6em; animation: pulse 2s infinite;';
+                badge.innerText = '1';
+                groupBtn.querySelector('.fw-bold').appendChild(badge);
+            } else {
+                let count = parseInt(badge.innerText || '0');
+                badge.innerText = count + 1;
+            }
+        }
+        showToast(`💬 Group: ${data.sender}`, data.content);
+    }
+});
+
+// ── Inbox Actions ───────────────────────────────────────────
+function markInboxRead(msgId) {
+    fetch('/api/messages/mark_read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message_id: msgId })
+    }).then(r => r.json()).then(d => {
+        if (d.success) {
+            const item = document.getElementById(`inbox-${msgId}`);
+            if (item) {
+                item.classList.add('opacity-50');
+                item.querySelector('.mark-read-btn')?.remove();
+            }
+            updateInboxBadge(-1);
+        }
+    });
+}
+
+function markAllInboxRead() {
+    fetch('/api/messages/mark_all_read', { method: 'POST' })
+        .then(r => r.json()).then(d => {
+            if (d.success) {
+                document.querySelectorAll('.inbox-item').forEach(item => {
+                    item.classList.add('opacity-50');
+                    item.querySelector('.mark-read-btn')?.remove();
+                });
+                updateInboxBadge('zero');
+            }
+        });
+}
+
+function updateInboxBadge(delta) {
+    const badge = document.querySelector('.inbox-badge');
+    if (!badge) return;
+    let currentCount = parseInt(badge.innerText || '0');
+    let newCount = delta === 'zero' ? 0 : currentCount + delta;
+    
+    badge.innerText = newCount;
+    badge.classList.toggle('d-none', newCount <= 0);
+}
+
+socket.on('new_notification', data => {
+    // Admin campaign arrived — show toast and update inbox badge
+    showToast(`📢 Admin Broadcast`, data.content);
+    updateInboxBadge(1);
+    
+    // Dynamically add to inbox list if the tab is open
+    const list = document.getElementById('inboxList');
+    if (list) {
+        const item = document.createElement('div');
+        item.className = 'list-group-item border-0 py-3 inbox-item';
+        item.id = `inbox-${data._id}`;
+        item.innerHTML = `
+            <div class="d-flex align-items-start gap-3">
+                <div class="rounded-circle d-flex align-items-center justify-content-center text-white fw-bold flex-shrink-0"
+                     style="width:40px;height:40px;background:linear-gradient(135deg,#7c3aed,#06b6d4)">
+                    <i class="bi bi-megaphone-fill" style="font-size:0.85rem;"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <div class="d-flex justify-content-between">
+                        <span class="fw-bold small">📢 Admin Broadcast</span>
+                        <div class="d-flex align-items-center gap-2">
+                            <small class="text-muted" style="font-size: 0.7rem;">Now</small>
+                            <button class="btn btn-sm p-0 text-primary mark-read-btn" onclick="markInboxRead('${data._id}')" title="Mark as read">
+                                <i class="bi bi-check-circle"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <p class="mb-0 small text-muted mt-1">${data.content}</p>
+                </div>
+            </div>`;
+        list.prepend(item);
+    }
+});
+
+socket.on('load_history', data => {
+    clearMessages();
+    data.messages.forEach(msg => appendMessage(msg));
+});
+
+socket.on('message_status_update', data => {
+    const msgDiv = document.getElementById(`msg-${data.message_id}`);
+    if (!msgDiv) return;
+    const icon = msgDiv.querySelector('.status-icon');
+    if (!icon) return;
+    if (data.status === 'read') icon.innerHTML = '<i class="bi bi-check2-all" style="color:#38bdf8;filter:drop-shadow(0 0 4px #38bdf8);"></i>';
+    else if (data.status === 'delivered') icon.innerHTML = '<i class="bi bi-check2-all" style="opacity:0.5;"></i>';
+});
+
+socket.on('user_status', data => {
+    const dot = document.getElementById(`status-${data.username}`);
+    if (dot) {
+        dot.className = `status-dot position-absolute bottom-0 end-0 border border-2 border-white rounded-circle`;
+        dot.classList.add(data.status === 'online' ? 'bg-success' : 'bg-secondary');
+    }
+    if (data.username === activeRecipient) {
+        const s = document.getElementById('activeStatus');
+        s.innerText = data.status === 'online' ? '● Online' : 'Offline';
+        s.className = data.status === 'online' ? 'text-success fw-semibold' : 'text-muted';
+        s.classList.remove('d-none');
+    }
+});
+
+socket.on('all_statuses', data => {
+    data.online_users.forEach(u => {
+        const dot = document.getElementById(`status-${u}`);
+        if (dot) { dot.className = 'status-dot position-absolute bottom-0 end-0 border border-2 border-white rounded-circle bg-success'; }
+    });
+});
+
+socket.on('user_typing', data => {
+    if (data.username === activeRecipient) {
+        document.getElementById('typingIndicator').classList.remove('d-none');
+        document.getElementById('activeStatus').classList.add('d-none');
+    }
+});
+
+socket.on('user_stopped_typing', data => {
+    if (data.username === activeRecipient) {
+        document.getElementById('typingIndicator').classList.add('d-none');
+        document.getElementById('activeStatus').classList.remove('d-none');
+    }
+});
+
+// ── Append Message Bubble ────────────────────────────────
+function appendMessage(data) {
+    const isMe = data.sender === currentUsername;
+    const wrap = document.createElement('div');
+    wrap.id = `msg-${data._id}`;
+    wrap.className = `d-flex ${isMe ? 'justify-content-end' : 'justify-content-start'} mb-1`;
+
+    const bubble = document.createElement('div');
+    bubble.className = `message-bubble p-3 rounded-4 shadow-sm ${isMe ? 'bg-primary text-white' : 'bg-white'}`;
+    bubble.style.maxWidth = '75%';
+
+    let statusIcon = '';
+    if (isMe) {
+        if (data.status === 'read') statusIcon = '<i class="bi bi-check2-all" style="color:#38bdf8;filter:drop-shadow(0 0 4px #38bdf8);"></i>';
+        else if (data.status === 'delivered') statusIcon = '<i class="bi bi-check2-all" style="opacity:0.5;"></i>';
+        else statusIcon = '<i class="bi bi-check2" style="opacity:0.5;"></i>';
+    }
+
+    let html = `<div class="fw-bold small mb-1 ${isMe ? 'd-none' : 'text-primary'}">${data.sender}</div>`;
+    if (data.attachment) {
+        html += `<img src="${data.attachment}" class="img-fluid rounded-3 mb-2 d-block" style="max-height:180px;cursor:pointer;" onclick="window.open('${data.attachment}')">`;
+    }
+    html += `<p class="mb-1" style="word-break:break-word;">${data.content}</p>`;
+    html += `<div class="text-end" style="font-size:0.72rem;opacity:0.7;">
+                ${new Date(data.timestamp).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}
+                ${isMe ? `<span class="status-icon ms-1">${statusIcon}</span>` : ''}
+             </div>`;
+    bubble.innerHTML = html;
+    wrap.appendChild(bubble);
+    document.getElementById('messages').appendChild(wrap);
+    const win = document.getElementById('chatWindow');
+    win.scrollTop = win.scrollHeight;
+}
+
+// ── Search Filter ─────────────────────────────────────────
+document.getElementById('contactSearch').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('.contact-item').forEach(item => {
+        item.style.display = item.dataset.username.toLowerCase().includes(q) ? '' : 'none';
+    });
+});
+
+// ── Theme Toggle ─────────────────────────────────────────
+document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('dark-mode');
+    const isDark = document.body.classList.contains('dark-mode');
+    document.getElementById('themeToggle').innerHTML = isDark ? '<i class="bi bi-sun-fill"></i>' : '<i class="bi bi-moon-fill"></i>';
+});
+
+// ── Toast ────────────────────────────────────────────────
+function showToast(title, msg) {
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;bottom:24px;right:24px;z-index:9999;min-width:280px;';
+    el.innerHTML = `
+        <div class="rounded-3 shadow-lg overflow-hidden" style="background:linear-gradient(135deg,#7c3aed,#06b6d4);color:white;">
+            <div class="px-3 py-2 d-flex justify-content-between align-items-center" style="background:rgba(0,0,0,0.15);">
+                <strong style="font-size:0.85rem;">${title}</strong>
+                <small style="opacity:0.7;">Now</small>
+            </div>
+            <div class="px-3 py-2" style="font-size:0.9rem;">${msg}</div>
+        </div>`;
+    el.style.animation = 'msgSlideIn 0.4s ease';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 4500);
+}
+</script>
+{% endblock %}
